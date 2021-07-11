@@ -5,7 +5,7 @@ import datetime
 from dateutil import parser
 from datetime import datetime
 from dateutil.tz import tzutc, tzlocal
-
+from crontab import CronTab
 
 load_dotenv()
 
@@ -19,33 +19,71 @@ my_access_token = token
 
 
 def crawl_post(my_access_token, profile_crawl_id):
+
+    '''
+        crawl data from specific profile facebook
+
+        Parameters:
+
+        profile_crawl_id: id of the profile facebook to crawl data
+        my_access_token: access_token of your account facebook
+        
+    '''
+    
+    # get posts from profile facebook
     url = f"https://graph.facebook.com/{profile_crawl_id}?fields=feed.limit(5)&access_token={my_access_token}"
+    datas = requests.get(url).json()['feed']['data']
 
-    posts = requests.get(url).json()['feed']['data']
-
+    # get today's date
     utc = parser.parse(datetime.now(tzutc()).astimezone().isoformat())
 
-    day_now = str(utc).split(' ')[0]
+    # create range time from 6h to 9h
+    today_date = str(utc).split(' ')[0]
+    upper_hour = '09:00:00+07:00'
+    lower_hour = '06:00:00+07:00'
 
-    hour_upper = '09:00:00+0000'
-    hour_lower = '06:00:00+0000'
+    message_posts = []
 
-    message_post = []
+    # get the right data
+    for data in datas:
 
-    for post in posts:
-        time_post = parser.parse(parser.parse(post['created_time']).astimezone().isoformat())
-        day_post = str(time_post).split(' ')[0]
-        hour_post = str(time_post).split(' ')[1]
-        if (day_post == day_now) and (hour_post < hour_upper) and (hour_post > hour_lower) :
-            message_post.append(post['message'])
+        # get time of posts
+        posts_time = parser.parse(parser.parse(data['created_time']).astimezone().isoformat())
+        # get date of posts
+        posts_date = str(posts_time).split(' ')[0]
+        # get hour of posts
+        posts_hour = str(posts_time).split(' ')[1]
 
-    return message_post
+        # check time of posts in the right range
+        if (posts_date == today_date) and (posts_hour < upper_hour) and (posts_hour > lower_hour):
+            # get message of posts
+            message_posts.append(data['message'])
+
+    return message_posts
 
 
-def processing_post():
+def processing_text(message_array):
+    '''
+        process text to get desired text
+
+        Parameters:
+
+        message_array: 
+        
+    '''
     pass
 
 def get_page_token(my_access_token, page_id):
+    '''
+        get token of page on facebook
+
+        Parameters:
+
+        page_id: id of page on facebook
+        my_access_token: access_token of your account facebook
+        
+    '''
+
     url = f'https://graph.facebook.com/{page_id}?fields=access_token&access_token={my_access_token}'
 
     data = requests.get(url).json()
@@ -56,10 +94,27 @@ def get_page_token(my_access_token, page_id):
 
 
 def post_page(page_id):
+    '''
+        post status on page
+
+        Parameters:
+
+        page_id: id of page on facebook
+        
+    '''
+
+    # get page_token 
     page_token = get_page_token(my_access_token, page_id)
+
+    # get data from specific profile facebook
     message_crawl = crawl_post(my_access_token, profile_crawl_id)
     message = message_crawl[0]
+
+    # post status on page
     url = f'https://graph.facebook.com/{page_id}/feed?message={message}!&access_token={page_token}'
     requests.post(url)
 
-post_page(page_id)
+# schedule run program
+# cron = CronTab()
+# job = cron.new(command='python auto_tool.py')
+# job.minute.every(1)
