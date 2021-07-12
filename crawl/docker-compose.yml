@@ -1,0 +1,23 @@
+version: '3.6'
+services:
+  rabbit:
+    image: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=12345678
+    ports:
+      - "5672:5672"  
+      - "15672:15672"
+  
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A auto_tool worker -l info
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbit
+  

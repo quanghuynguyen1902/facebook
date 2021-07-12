@@ -5,7 +5,9 @@ import datetime
 from dateutil import parser
 from datetime import datetime
 from dateutil.tz import tzutc, tzlocal
-from crontab import CronTab
+from celery import Celery
+from celery.schedules import crontab 
+
 
 load_dotenv()
 
@@ -18,6 +20,21 @@ profile_crawl_id = iid
 my_access_token = token
 
 
+app = Celery('tasks', broker='amqp://admin:12345678@rabbit:5672')
+
+app.conf.timezone = 'UTC'
+
+app.conf.beat_schedule = {
+    # executes every 
+    'post-page': {
+        'task': 'tasks.post_page',
+        'schedule': crontab(),
+    },
+    
+}
+
+
+@app.task
 def crawl_post(my_access_token, profile_crawl_id):
 
     '''
@@ -49,6 +66,7 @@ def crawl_post(my_access_token, profile_crawl_id):
 
         # get time of posts
         posts_time = parser.parse(parser.parse(data['created_time']).astimezone().isoformat())
+
         # get date of posts
         posts_date = str(posts_time).split(' ')[0]
         # get hour of posts
@@ -61,7 +79,7 @@ def crawl_post(my_access_token, profile_crawl_id):
 
     return message_posts
 
-
+@app.task
 def processing_text(message_array):
     '''
         process text to get desired text
@@ -73,6 +91,7 @@ def processing_text(message_array):
     '''
     pass
 
+@app.task
 def get_page_token(my_access_token, page_id):
     '''
         get token of page on facebook
@@ -92,8 +111,8 @@ def get_page_token(my_access_token, page_id):
 
     return page_token
 
-
-def post_page(page_id):
+@app.task
+def post_page():
     '''
         post status on page
 
@@ -102,10 +121,9 @@ def post_page(page_id):
         page_id: id of page on facebook
         
     '''
-
-    # get page_token 
+    # try:
+        # get page_token 
     page_token = get_page_token(my_access_token, page_id)
-
     # get data from specific profile facebook
     message_crawl = crawl_post(my_access_token, profile_crawl_id)
     message = message_crawl[0]
@@ -113,8 +131,8 @@ def post_page(page_id):
     # post status on page
     url = f'https://graph.facebook.com/{page_id}/feed?message={message}!&access_token={page_token}'
     requests.post(url)
+    # except Exception as e:
+    #     print('The scraping job failed. See exception:')
+    #     print(e)
 
-# schedule run program
-# cron = CronTab()
-# job = cron.new(command='python auto_tool.py')
-# job.minute.every(1)
+post_page()
