@@ -7,7 +7,8 @@ from datetime import datetime
 from dateutil.tz import tzutc, tzlocal
 from celery import Celery
 from celery.schedules import crontab 
-
+import pytz
+from dateutil.tz import gettz
 
 load_dotenv()
 
@@ -22,13 +23,13 @@ my_access_token = token
 
 app = Celery('tasks', broker='amqp://admin:12345678@rabbit:5672')
 
-app.conf.timezone = 'UTC'
+app.conf.timezone = 'Asia/Ho_Chi_Minh'
 
 app.conf.beat_schedule = {
     # executes every 
     'post-page': {
-        'task': 'tasks.post_page',
-        'schedule': crontab(),
+        'task': 'auto_tool.post_page',
+        'schedule': crontab(minute=0, hour=9),
     },
     
 }
@@ -51,9 +52,9 @@ def crawl_post(my_access_token, profile_crawl_id):
     url = f"https://graph.facebook.com/{profile_crawl_id}?fields=feed.limit(5)&access_token={my_access_token}"
     datas = requests.get(url).json()['feed']['data']
 
+    tz = pytz.timezone('Asia/Ho_Chi_Minh')
     # get today's date
-    utc = parser.parse(datetime.now(tzutc()).astimezone().isoformat())
-
+    utc = parser.parse(datetime.now(tz).astimezone().isoformat())
     # create range time from 6h to 9h
     today_date = str(utc).split(' ')[0]
     upper_hour = '09:00:00+07:00'
@@ -61,12 +62,14 @@ def crawl_post(my_access_token, profile_crawl_id):
 
     message_posts = []
 
+    VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
     # get the right data
     for data in datas:
 
         # get time of posts
-        posts_time = parser.parse(parser.parse(data['created_time']).astimezone().isoformat())
-
+        posts_time = parser.parse(parser.parse(data['created_time']).astimezone(VN_TZ).isoformat())
+        print(posts_time)
         # get date of posts
         posts_date = str(posts_time).split(' ')[0]
         # get hour of posts
@@ -134,5 +137,3 @@ def post_page():
     # except Exception as e:
     #     print('The scraping job failed. See exception:')
     #     print(e)
-
-post_page()

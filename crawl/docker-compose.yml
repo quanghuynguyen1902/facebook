@@ -13,7 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A auto_tool worker -l info
+    command: celery -A auto_tool worker -B -l info
     env_file:
       - .env
     volumes:
