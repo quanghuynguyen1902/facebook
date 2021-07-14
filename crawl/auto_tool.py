@@ -82,17 +82,74 @@ def crawl_post(my_access_token, profile_crawl_id):
 
     return message_posts
 
+
 @app.task
-def processing_text(message_array):
-    '''
-        process text to get desired text
+def process_new(st):
+    res = st.replace('"', "")
+    res = res.replace("'", "")
+    res = res.replace("+)", "+")
+    res = res.replace("+ )", "+")
+    res = res.replace("...", " ")
+    res = res.replace("..", " ")
+    if res == '' or len(res) < 25:
+        return ''
+    if res[-1] in ['.', ';', ',']:
+        res = res[:-1]
+    return res.lstrip()
 
-        Parameters:
+@app.task
+def processing_text(message):
+    lines = message.splitlines()
+    lines = [x for x in lines if x != '']
+    pre_categories = ['TIN COVID', 'TRONG NƯỚC', 'KINH DOANH', 'KHÁM PHÁ', 'THẾ GIỚI', 'GIẢI TRÍ - THỂ THAO', 'P.PHÁP HỌC', 'Ý TƯỞNG LÀM GIÀU']
+    new_categories = [x for x in lines if x.isupper()]
+    categories = list(set(pre_categories + new_categories))
+#     print(categories)
+    
+    cur_cat = 'TIN COVID'
+    cur_news = []
+    res = {}
+    for line in lines:
+        if line.isupper():
+            if cur_news:
+                res[cur_cat] = cur_news
+            cur_news = []
+            cur_cat = line
+        else:
+            if line == '':
+                continue
+            pline = process_new(line)
+            if pline == '':
+                continue
+            if pline[0] == '+':
+                if pline.find('+ ') == -1:
+                    pline = pline.replace('+', '+ ')
+                pline = pline.replace('+', '🎶')
+                cur_news.append(pline)
+    return res
 
-        message_array: 
-        
-    '''
-    pass
+@app.task
+def kinhdoanh(news):
+    today = datetime.today().strftime('%d/%m')
+    message = f'🚨 BẢN TIN KINH DOANH NGÀY {today} 💥\n\n' + '\n'.join(news['KINH DOANH'])
+    if 'Ý TƯỞNG LÀM GIÀU' in news:
+        message += '\n 💵 Ý TƯỞNG LÀM GIÀU \n \n' + '\n'.join(news['Ý TƯỞNG LÀM GIÀU'])
+    
+    message += '\n\n💠 📢 Làm gì làm ngày nào cũng vào kênh 𝑷𝒊𝒈𝑩𝒊𝒓𝒅 cập nhật tin tức nhé mọi người! 📢 🤟 ' 
+    return message
+
+@app.task
+def tinnong(news):
+    today = datetime.today().strftime('%d/%m')
+    message = f'🌋🌋 TIN NÓNG NGÀY {today} 🔥🔥\n\n'
+    message += f'🌡 TIN COVID 🛬\n' + '\n'.join(news['TIN COVID'])
+    if 'TRONG NƯỚC' in news:
+        message += '\n\n🚈 TRONG NƯỚC 🏖\n' + '\n'.join(news['TRONG NƯỚC'])
+    if 'THẾ GIỚI' in news:
+        message += '\n\n🌎 THẾ GIỚI 🛸\n' + '\n'.join(news['THẾ GIỚI'])
+    
+    message += '\n\n💠 📢 Làm gì làm ngày nào cũng vào kênh 𝑷𝒊𝒈𝑩𝒊𝒓𝒅 cập nhật tin tức nhé mọi người! 📢 🤟 ' 
+    return message
 
 @app.task
 def get_page_token(my_access_token, page_id):
@@ -124,16 +181,20 @@ def post_page():
         page_id: id of page on facebook
         
     '''
-    # try:
-        # get page_token 
+
+    # get page_token 
     page_token = get_page_token(my_access_token, page_id)
     # get data from specific profile facebook
     message_crawl = crawl_post(my_access_token, profile_crawl_id)
     message = message_crawl[0]
 
+    res = processing_text(message)
+ 
     # post status on page
-    url = f'https://graph.facebook.com/{page_id}/feed?message={message}!&access_token={page_token}'
+    kinhdoanh_post = kinhdoanh(res)
+    url = f'https://graph.facebook.com/{page_id}/feed?message={kinhdoanh_post}!&access_token={page_token}'
     requests.post(url)
-    # except Exception as e:
-    #     print('The scraping job failed. See exception:')
-    #     print(e)
+ 
+    tinnong_post = tinnong(res)
+    url = f'https://graph.facebook.com/{page_id}/feed?message={tinnong_post}!&access_token={page_token}'
+    requests.post(url)
