@@ -29,7 +29,7 @@ app.conf.beat_schedule = {
     # executes every 
     'post-page': {
         'task': 'auto_tool.post_page',
-        'schedule': crontab(minute=0, hour=9),
+        'schedule': crontab(minute=29, hour=22),
     },
     
 }
@@ -186,15 +186,19 @@ def post_page():
     page_token = get_page_token(my_access_token, page_id)
     # get data from specific profile facebook
     message_crawl = crawl_post(my_access_token, profile_crawl_id)
-    message = message_crawl[0]
+    message = ''
+    for mess in message_crawl:
+        if 'Tin nóng' in mess:
+            message = mess 
 
-    res = processing_text(message)
- 
-    # post status on page
-    kinhdoanh_post = kinhdoanh(res)
-    url = f'https://graph.facebook.com/{page_id}/feed?message={kinhdoanh_post}!&access_token={page_token}'
-    requests.post(url)
- 
-    tinnong_post = tinnong(res)
-    url = f'https://graph.facebook.com/{page_id}/feed?message={tinnong_post}!&access_token={page_token}'
-    requests.post(url)
+    if(message != ''):
+        res = processing_text(message)
+    
+        # post status on page
+        kinhdoanh_post = kinhdoanh(res)
+        url = f'https://graph.facebook.com/{page_id}/feed?message={kinhdoanh_post}!&access_token={page_token}'
+        requests.post(url)
+    
+        tinnong_post = tinnong(res)
+        url = f'https://graph.facebook.com/{page_id}/feed?message={tinnong_post}!&access_token={page_token}'
+        requests.post(url)
